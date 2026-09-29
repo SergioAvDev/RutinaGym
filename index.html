@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>Rutina Gym</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:#0f1b2d;color:#e8eef7;padding-bottom:80px}
+header{background:#1e3a5f;padding:12px;text-align:center;position:sticky;top:0;z-index:2}
+.wk{display:flex;align-items:center;justify-content:space-between;font-weight:600}
+button{font:inherit;border:0;border-radius:8px;padding:8px 12px;background:#2c4f7c;color:#fff}
+.tabs{display:flex;gap:4px;margin-top:10px}
+.tabs button{flex:1;padding:8px 0;background:#16304f}
+.tabs button.sel{background:#ffc83d;color:#111;font-weight:700}
+.tabs button.hoy{outline:2px solid #6cb4ff}
+main{padding:12px;max-width:640px;margin:auto}
+h2{margin:4px 0 8px;font-size:1.1rem}
+input{font:inherit;background:#16304f;color:#fff;border:1px solid #2c4f7c;border-radius:8px;padding:8px;width:100%}
+.ex{background:#16243b;border-radius:10px;padding:10px;margin:10px 0}
+.r{display:flex;gap:6px;align-items:end;margin-top:8px}
+.r label{flex:1;font-size:.75rem;color:#9fb3cc}
+.del{background:#b8860b;padding:8px 10px;margin-left:auto}
+.add{width:100%;background:#ffc83d;color:#111;font-weight:700;padding:12px;margin-top:6px}
+footer{display:flex;gap:8px;justify-content:center;margin-top:24px}
+footer button{background:#16304f;font-size:.85rem}
+.vacio{color:#9fb3cc;text-align:center;margin:20px}
+</style></head><body>
+<header>
+ <div class="wk"><button id="prev">‹</button><span id="wl"></span><button id="next">›</button></div>
+ <div class="tabs" id="tabs"></div>
+</header>
+<main>
+ <input id="title" placeholder="Músculos del día (ej. Pecho + Tríceps)">
+ <div id="list"></div>
+ <button class="add" id="add">+ Añadir ejercicio</button>
+ <footer>
+  <button id="exp">Exportar copia</button>
+  <button id="imp">Importar copia</button>
+  <input type="file" id="file" accept=".json" hidden>
+ </footer>
+</main>
+<script>
+const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'],ABR=['L','M','X','J','V','S','D'];
+let S;try{S=JSON.parse(localStorage.getItem('gym'))}catch(e){}
+S=S||{template:{},weeks:{}};
+const $=id=>document.getElementById(id);
+const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const monday=d=>{d=new Date(d);d.setDate(d.getDate()-(d.getDay()+6)%7);return d};
+const cur=fmt(monday(new Date())),hoy=(new Date().getDay()+6)%7;
+let vw=cur,vd=hoy;
+const clone=o=>JSON.parse(JSON.stringify(o));
+function save(){localStorage.setItem('gym',JSON.stringify(S))}
+function day(){
+ const w=S.weeks[vw]||(S.weeks[vw]={});
+ if(!w[vd]){
+  const t=S.template[vd];
+  w[vd]=(t&&vw>=cur)?clone(t):{title:'',ex:[]};
+ }
+ return w[vd];
+}
+function touch(){
+ if(vw===cur)S.template[vd]=clone(S.weeks[vw][vd]);
+ save();
+}
+function wlabel(){
+ const a=new Date(vw+'T00:00'),b=new Date(a);b.setDate(b.getDate()+6);
+ const f=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+ return f(a)+' – '+f(b)+(vw===cur?' (esta semana)':'');
+}
+function render(){
+ $('wl').textContent=wlabel();
+ $('tabs').innerHTML=ABR.map((a,i)=>`<button class="${i===vd?'sel':''} ${i===hoy&&vw===cur?'hoy':''}" data-i="${i}" title="${DIAS[i]}">${a}</button>`).join('');
+ const d=day();
+ $('title').value=d.title;
+ $('list').innerHTML=d.ex.length?d.ex.map((e,i)=>`
+ <div class="ex">
+  <input data-i="${i}" data-k="name" placeholder="Ejercicio" value="${(e.name||'').replace(/"/g,'&quot;')}">
+  <div class="r">
+   <label>Series<input type="number" inputmode="numeric" data-i="${i}" data-k="sets" value="${e.sets}"></label>
+   <label>Reps<input type="number" inputmode="numeric" data-i="${i}" data-k="reps" value="${e.reps}"></label>
+   <label>Kg<input type="number" inputmode="decimal" step="0.5" data-i="${i}" data-k="kg" value="${e.kg}"></label>
+   <button class="del" data-del="${i}">Borrar</button>
+  </div>
+ </div>`).join(''):'<p class="vacio">Sin ejercicios. Pulsa «Añadir ejercicio».</p>';
+}
+$('tabs').onclick=e=>{const i=e.target.dataset.i;if(i!==undefined){vd=+i;render()}};
+$('prev').onclick=()=>{const d=new Date(vw+'T00:00');d.setDate(d.getDate()-7);vw=fmt(d);render()};
+$('next').onclick=()=>{const d=new Date(vw+'T00:00');d.setDate(d.getDate()+7);vw=fmt(d);render()};
+$('title').oninput=e=>{day().title=e.target.value;touch()};
+$('add').onclick=()=>{day().ex.push({name:'',sets:3,reps:10,kg:0});touch();render()};
+$('list').oninput=e=>{const t=e.target,k=t.dataset.k;if(!k)return;day().ex[+t.dataset.i][k]=k==='name'?t.value:(t.value===''?'':+t.value);touch()};
+$('list').onclick=e=>{const i=e.target.dataset.del;if(i!==undefined&&confirm('¿Borrar este ejercicio?')){day().ex.splice(+i,1);touch();render()}};
+$('exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='gym-'+fmt(new Date())+'.json';a.click()};
+$('imp').onclick=()=>$('file').click();
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const o=JSON.parse(t);if(o.template&&o.weeks){S=o;save();render()}else alert('Archivo no válido')}catch(x){alert('Archivo no válido')}})};
+render();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
